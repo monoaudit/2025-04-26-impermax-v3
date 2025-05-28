@@ -8,7 +8,7 @@ interface IUniswapV3Pool {
     function fee() external view returns (uint24);
     function tickSpacing() external view returns (int24);
     function maxLiquidityPerTick() external view returns (uint128);
-	
+
     function slot0()
         external
         view
@@ -63,7 +63,7 @@ interface IUniswapV3Pool {
             uint160 secondsPerLiquidityCumulativeX128,
             bool initialized
         );
-		
+
     function observe(uint32[] calldata secondsAgos)
         external
         view
@@ -72,21 +72,13 @@ interface IUniswapV3Pool {
     function snapshotCumulativesInside(int24 tickLower, int24 tickUpper)
         external
         view
-        returns (
-            int56 tickCumulativeInside,
-            uint160 secondsPerLiquidityInsideX128,
-            uint32 secondsInside
-        );
-		
+        returns (int56 tickCumulativeInside, uint160 secondsPerLiquidityInsideX128, uint32 secondsInside);
+
     function initialize(uint160 sqrtPriceX96) external;
 
-    function mint(
-        address recipient,
-        int24 tickLower,
-        int24 tickUpper,
-        uint128 amount,
-        bytes calldata data
-    ) external returns (uint256 amount0, uint256 amount1);
+    function mint(address recipient, int24 tickLower, int24 tickUpper, uint128 amount, bytes calldata data)
+        external
+        returns (uint256 amount0, uint256 amount1);
 
     function collect(
         address recipient,
@@ -96,11 +88,9 @@ interface IUniswapV3Pool {
         uint128 amount1Requested
     ) external returns (uint128 amount0, uint128 amount1);
 
-    function burn(
-        int24 tickLower,
-        int24 tickUpper,
-        uint128 amount
-    ) external returns (uint256 amount0, uint256 amount1);
+    function burn(int24 tickLower, int24 tickUpper, uint128 amount)
+        external
+        returns (uint256 amount0, uint256 amount1);
 
     function swap(
         address recipient,
@@ -109,13 +99,8 @@ interface IUniswapV3Pool {
         uint160 sqrtPriceLimitX96,
         bytes calldata data
     ) external returns (int256 amount0, int256 amount1);
-	
-    function flash(
-        address recipient,
-        uint256 amount0,
-        uint256 amount1,
-        bytes calldata data
-    ) external;
+
+    function flash(address recipient, uint256 amount0, uint256 amount1, bytes calldata data) external;
 
     function increaseObservationCardinalityNext(uint16 observationCardinalityNext) external;
 }

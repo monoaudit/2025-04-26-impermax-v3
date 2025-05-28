@@ -13,35 +13,35 @@ import {LiquidityAmounts} from "../src/libraries/LiquidityAmounts.sol";
 contract BorrowTest is Test {
     uint256 baseFork;
 
-    address usdc = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
-    address weth = 0x4200000000000000000000000000000000000006;
-    address tUniV3Pos = 0xa68F6075ae62eBD514d1600cb5035fa0E2210ef8;
-    address imxBusdc = 0xbC303aCdA8B2a0dCD3D17F05aDDdF854eDd6da59;
-    address imxCaddr = 0xc1D49fa32d150B31C4a5bf1Cbf23Cf7Ac99eaF7d;
-    IERC20 USDC = IERC20(usdc);
-    IERC20 WETH = IERC20(weth);
-    ITokenizedUniswapV3Position tokenizedUniV3Pos = ITokenizedUniswapV3Position(tUniV3Pos);
-    IBorrowable imxBUSDC = IBorrowable(imxBusdc);
-    ICollateral imxC = ICollateral(imxCaddr);
+    IERC20 USDC = IERC20(0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913);
+    IERC20 WETH = IERC20(0x4200000000000000000000000000000000000006);
 
-    uint24 lowLiquidityPoolFee = 200;
+    ITokenizedUniswapV3Position tokenizedUniV3Pos;
+    IBorrowable imxBUSDC;
+    ICollateral imxC = ICollateral(0xc1D49fa32d150B31C4a5bf1Cbf23Cf7Ac99eaF7d);
 
-    uint256 usdcLPAmount = 180e6;         // 180 USDC
-    uint256 wethLPAmount = 0.1e18;        // 0.1 WETH
+    uint24 fee = 200;
+
+    uint256 usdcLPAmount = 180e6; // 180 USDC
+    uint256 wethLPAmount = 0.1e18; // 0.1 WETH
 
     function setUp() public {
         string memory BASE_RPC_URL = vm.envString("BASE_RPC_URL");
         // we will test on the base mainnet fork at specific block
         baseFork = vm.createFork(BASE_RPC_URL, 29437733);
         vm.selectFork(baseFork);
+
+        tokenizedUniV3Pos = ITokenizedUniswapV3Position(imxC.underlying());
+        imxBUSDC = IBorrowable(imxC.borrowable1());
+
         // provide 180 USDC and 0.1 WETH to the caller
-        deal(usdc, address(this), usdcLPAmount);
-        deal(weth, address(this), wethLPAmount);
+        deal(address(USDC), address(this), usdcLPAmount);
+        deal(address(WETH), address(this), wethLPAmount);
     }
 
     function test_Borrow() public {
         // choose the pool we want to use
-        IUniswapV3Pool pool = IUniswapV3Pool(tokenizedUniV3Pos.getPool(lowLiquidityPoolFee));
+        IUniswapV3Pool pool = IUniswapV3Pool(tokenizedUniV3Pos.getPool(fee));
         int24 poolTickSpacing = pool.tickSpacing();
         (uint160 sqrtPriceX96, int24 tick,,,,,) = pool.slot0();
 
@@ -74,11 +74,7 @@ contract BorrowTest is Test {
 
         // provide liquidity to the pool
         (uint256 wethLProvided, uint256 usdcLProvided) = pool.mint(
-            tUniV3Pos,
-            tickLower,
-            tickUpper,
-            poolMintAmount,
-            abi.encode(weth, usdc)
+            address(tokenizedUniV3Pos), tickLower, tickUpper, poolMintAmount, abi.encode(address(WETH), address(USDC))
         );
 
         uint256 usdcBalanceAfter = USDC.balanceOf(address(this));
@@ -87,7 +83,7 @@ contract BorrowTest is Test {
         console.log("      WETH balance  after:", wethBalanceAfter);
 
         // calculate the amounts provided in terms of USDC
-        uint256 currentPrice = ((sqrtPriceX96 * 1e18 / 2**96) ** 2) / 1e18;
+        uint256 currentPrice = ((sqrtPriceX96 * 1e18 / 2 ** 96) ** 2) / 1e18;
         uint256 wethUsdcProvided = (currentPrice * wethLProvided) / 1e18;
         console.log("            WETH provided:", wethUsdcProvided);
         console.log("            USDC provided:", usdcLProvided);
@@ -95,15 +91,10 @@ contract BorrowTest is Test {
         console.log("           Total provided:", totalUsdcProvided);
 
         // mint the tokenized position
-        uint256 tokenId = tokenizedUniV3Pos.mint(
-            address(this),
-            lowLiquidityPoolFee,
-            tickLower,
-            tickUpper
-        );
+        uint256 tokenId = tokenizedUniV3Pos.mint(address(this), fee, tickLower, tickUpper);
 
         // transfer the tokenized position to the IMX contract
-        tokenizedUniV3Pos.transferFrom(address(this), imxCaddr, tokenId);
+        tokenizedUniV3Pos.transferFrom(address(this), address(imxC), tokenId);
 
         // minting the collateral
         imxC.mint(address(this), tokenId);
@@ -123,13 +114,9 @@ contract BorrowTest is Test {
         assertGe(usdcBalanceAfterBorrow, usdcBalanceAfter + toBorrow);
     }
 
-    function uniswapV3MintCallback(
-        uint256 amount0Delta,
-        uint256 amount1Delta,
-        bytes calldata data
-    ) public {
+    function uniswapV3MintCallback(uint256 amount0Delta, uint256 amount1Delta, bytes calldata data) public {
         (address token0, address token1) = abi.decode(data, (address, address));
-        
+
         if (amount0Delta > 0) {
             IERC20(token0).transfer(msg.sender, amount0Delta);
         }
@@ -141,5 +128,4 @@ contract BorrowTest is Test {
     function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
         return bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"));
     }
-
 }
